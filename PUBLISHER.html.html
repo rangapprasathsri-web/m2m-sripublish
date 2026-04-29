@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic MQTT Publisher</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.14.1/mqtt.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; padding: 20px; color: #333; }
+        .container { max-width: 500px; margin: auto; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h2 { margin-top: 0; color: #007bff; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        
+        .section { margin-bottom: 20px; padding: 15px; border: 1px solid #e1e1e1; border-radius: 5px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.9em; }
+        input { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        
+        button { width: 100%; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .btn-connect { background-color: #28a745; color: white; }
+        .btn-connect:hover { background-color: #218838; }
+        .btn-publish { background-color: #007bff; color: white; margin-top: 10px; }
+        .btn-publish:disabled { background-color: #ccc; cursor: not-allowed; }
+        
+        #status { font-weight: bold; padding: 10px; border-radius: 4px; text-align: center; margin-bottom: 15px; }
+        .offline { background: #ffebee; color: #c62828; }
+        .online { background: #e8f5e9; color: #2e7d32; }
+        #log { background: #222; color: #00ff00; padding: 10px; height: 120px; overflow-y: auto; font-family: monospace; font-size: 0.85em; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>MQTT Publisher Setup</h2>
+    
+    <div id="status" class="offline">Status: Disconnected</div>
+
+    <div class="section">
+        <label>Broker URL (WebSocket)</label>
+        <input type="text" id="host" placeholder="broker.hivemq.com" value="broker.hivemq.com">
+        
+        <label>Port (8000 for ws, 8884 for wss)</label>
+        <input type="number" id="port" placeholder="8000" value="8000">
+        
+        <button class="btn-connect" id="connBtn" onclick="toggleConnection()">Connect to Broker</button>
+    </div>
+
+    <div class="section">
+        <label>Topic</label>
+        <input type="text" id="topic" placeholder="e.g., my/iot/device" value="testtopic/1">
+        
+        <label>Message Payload</label>
+        <input type="text" id="payload" placeholder="Hello World!">
+        
+        <button class="btn-publish" id="pubBtn" onclick="publish()" disabled>Publish Message</button>
+    </div>
+
+    <div id="log">Console initialized...</div>
+</div>
+
+<script>
+    let client = null;
+    const logEl = document.getElementById('log');
+    const statusEl = document.getElementById('status');
+    const pubBtn = document.getElementById('pubBtn');
+    const connBtn = document.getElementById('connBtn');
+
+    function writeLog(msg) {
+        const time = new Date().toLocaleTimeString();
+        logEl.innerHTML += `<div>[${time}] ${msg}</div>`;
+        logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function toggleConnection() {
+        if (client && client.connected) {
+            client.end();
+            return;
+        }
+
+        const host = document.getElementById('host').value;
+        const port = document.getElementById('port').value;
+        // Construct the WebSocket URL
+        const url = `ws://${host}:${port}/mqtt`;
+
+        writeLog(`Connecting to ${url}...`);
+        
+        client = mqtt.connect(url, {
+            clientId: 'web_pub_' + Math.random().toString(16).substring(2, 8),
+            clean: true,
+            connectTimeout: 4000
+        });
+
+        client.on('connect', () => {
+            statusEl.textContent = "Status: Online";
+            statusEl.className = "online";
+            connBtn.textContent = "Disconnect";
+            connBtn.style.backgroundColor = "#dc3545";
+            pubBtn.disabled = false;
+            writeLog("Connected successfully!");
+        });
+
+        client.on('close', () => {
+            statusEl.textContent = "Status: Disconnected";
+            statusEl.className = "offline";
+            connBtn.textContent = "Connect to Broker";
+            connBtn.style.backgroundColor = "#28a745";
+            pubBtn.disabled = true;
+            writeLog("Connection closed.");
+        });
+
+        client.on('error', (err) => {
+            writeLog("Error: " + err.message);
+            client.end();
+        });
+    }
+
+    function publish() {
+        const topic = document.getElementById('topic').value;
+        const msg = document.getElementById('payload').value;
+
+        if (!topic || !msg) {
+            alert("Please enter both a topic and a message!");
+            return;
+        }
+
+        client.publish(topic, msg, { qos: 0 }, (err) => {
+            if (err) {
+                writeLog("Publish Error: " + err);
+            } else {
+                writeLog(`Sent: "${msg}" to [${topic}]`);
+            }
+        });
+    }
+</script>
+
+</body>
+</html>
